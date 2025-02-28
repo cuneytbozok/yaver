@@ -6,7 +6,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies with legacy peer deps and ignore platform-specific packages
-RUN npm install --legacy-peer-deps --no-optional
+RUN npm install --legacy-peer-deps
 
 # Copy the rest of the application
 COPY . .

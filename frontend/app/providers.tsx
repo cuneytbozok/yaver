@@ -7,10 +7,8 @@ import { Toaster } from 'sonner';
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <Toaster position="top-right" />
-      <main className="min-h-screen bg-background">
-        {children}
-      </main>
+      {children}
+      <Toaster />
     </ThemeProvider>
   );
 } 
