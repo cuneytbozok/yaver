@@ -80,30 +80,6 @@ async def get_agents():
                         agents.append(Agent(**agent_data))
             except Exception as e:
                 logger.warning(f"Method 1 failed: {str(e)}")
-                
-                # If all methods fail, try to read from local storage
-                try:
-                    import os
-                    import json
-                    
-                    # Check if the agents directory exists
-                    if os.path.exists("/app/agents"):
-                        # Read all agent files
-                        for filename in os.listdir("/app/agents"):
-                            if filename.endswith(".json"):
-                                try:
-                                    with open(f"/app/agents/{filename}", "r") as f:
-                                        agent_info = json.load(f)
-                                        
-                                        # Convert string date to datetime
-                                        if "created_at" in agent_info:
-                                            agent_info["created_at"] = datetime.fromisoformat(agent_info["created_at"])
-                                        
-                                        agents.append(Agent(**agent_info))
-                                except Exception as e:
-                                    logger.warning(f"Error reading agent file {filename}: {str(e)}")
-                except Exception as e:
-                    logger.warning(f"Error reading agents from local storage: {str(e)}")
             
             logger.info(f"Retrieved {len(agents)} agents")
             return agents
@@ -111,37 +87,8 @@ async def get_agents():
         except Exception as e:
             logger.error(f"Failed to get agents: {str(e)}")
             
-            # If SQL fails, try to read from local storage
-            try:
-                import os
-                import json
-                
-                agents = []
-                
-                # Check if the agents directory exists
-                if os.path.exists("/app/agents"):
-                    # Read all agent files
-                    for filename in os.listdir("/app/agents"):
-                        if filename.endswith(".json"):
-                            try:
-                                with open(f"/app/agents/{filename}", "r") as f:
-                                    agent_info = json.load(f)
-                                    
-                                    # Convert string date to datetime
-                                    if "created_at" in agent_info:
-                                        agent_info["created_at"] = datetime.fromisoformat(agent_info["created_at"])
-                                    
-                                    agents.append(Agent(**agent_info))
-                            except Exception as e:
-                                logger.warning(f"Error reading agent file {filename}: {str(e)}")
-                
-                logger.info(f"Retrieved {len(agents)} agents from local storage")
-                return agents
-            except Exception as e:
-                logger.warning(f"Error reading agents from local storage: {str(e)}")
-                
-                # If all else fails, return empty list
-                return []
+            # If all methods fail, return empty list
+            return []
                 
     except Exception as e:
         logger.error(f"Failed to get agents: {str(e)}")

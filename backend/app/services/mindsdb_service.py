@@ -115,33 +115,6 @@ class MindsDBService:
             # Format engine name to comply with MindsDB naming requirements
             engine_name = engine.name.lower().replace(' ', '_').replace('-', '_')
             
-            # Try to create the engine using the project directly
-            try:
-                if hasattr(self, 'project') and self.project:
-                    logger.info(f"Creating engine through project: {engine_name}")
-                    mindsdb_engine = self.project.engines.create(
-                        name=engine_name,
-                        handler=handler,
-                        params=params
-                    )
-                    logger.info(f"Engine created successfully through project: {mindsdb_engine.name}")
-                    
-                    # Store the engine information in a local file for backup
-                    self._store_engine_info(engine_name, handler, engine.model_version, engine.description)
-                    
-                    return MLEngine(
-                        id=mindsdb_engine.name,
-                        name=engine.name,
-                        provider=engine.provider,
-                        api_key="*****",  # Hide API key for security
-                        model_version=engine.model_version,
-                        description=engine.description,
-                        created_at=datetime.now()
-                    )
-            except Exception as e:
-                logger.warning(f"Error creating engine through project: {str(e)}")
-            
-            # If project method fails, try SQL
             # Create the engine using SQL
             query = f"""
             CREATE ENGINE marketing_agents.{engine_name} 
@@ -158,9 +131,6 @@ class MindsDBService:
             result = self.client.query(query)
             logger.info(f"SQL query result: {result}")
             
-            # Store the engine information in a local file for backup
-            self._store_engine_info(engine_name, handler, engine.model_version, engine.description)
-            
             # Return the created engine
             return MLEngine(
                 id=engine_name,
@@ -174,31 +144,6 @@ class MindsDBService:
         except Exception as e:
             logger.error(f"Error creating ML engine: {str(e)}")
             raise
-    
-    def _store_engine_info(self, name, handler, model_version=None, description=None):
-        """Store engine information in a local file for backup"""
-        try:
-            import os
-            import json
-            
-            # Create the engines directory if it doesn't exist
-            os.makedirs("/app/engines", exist_ok=True)
-            
-            # Store the engine information in a JSON file
-            engine_info = {
-                "name": name,
-                "handler": handler,
-                "model_version": model_version,
-                "description": description,
-                "created_at": datetime.now().isoformat()
-            }
-            
-            with open(f"/app/engines/{name}.json", "w") as f:
-                json.dump(engine_info, f)
-            
-            logger.info(f"Stored engine information for {name}")
-        except Exception as e:
-            logger.warning(f"Error storing engine information: {str(e)}")
     
     def create_agent(self, agent: AgentCreate) -> Agent:
         """Create a new agent in MindsDB using the specified ML engine"""
@@ -256,9 +201,6 @@ class MindsDBService:
             result = self.client.query(query)
             logger.info(f"SQL query result: {result}")
             
-            # Store agent information locally for backup
-            self._store_agent_info(agent_name, agent)
-            
             logger.info(f"Agent created successfully: {agent_name}")
             
             # Return the created agent
@@ -287,26 +229,6 @@ class MindsDBService:
         except Exception as e:
             logger.error(f"Error creating agent: {str(e)}")
             raise
-    
-    def _store_agent_info(self, name, agent):
-        """Store agent information in a local file for backup"""
-        try:
-            import os
-            import json
-            
-            # Create the agents directory if it doesn't exist
-            os.makedirs("/app/agents", exist_ok=True)
-            
-            # Store the agent information in a JSON file
-            agent_dict = agent.dict()
-            agent_dict["created_at"] = datetime.now().isoformat()
-            
-            with open(f"/app/agents/{name}.json", "w") as f:
-                json.dump(agent_dict, f)
-            
-            logger.info(f"Stored agent information for {name}")
-        except Exception as e:
-            logger.warning(f"Error storing agent information: {str(e)}")
     
     def _generate_agent_prompt(self, agent: AgentCreate) -> str:
         """Generate a prompt template for the agent based on its attributes"""
@@ -381,9 +303,6 @@ Rate your likelihood to engage with this campaign on a scale of 1-10.
             logger.info(f"Executing SQL query to insert campaign data: {insert_query}")
             insert_result = self.client.query(insert_query)
             
-            # Store campaign information locally for backup
-            self._store_campaign_info(campaign_name, campaign)
-            
             logger.info(f"Campaign created successfully: campaign_{campaign_name}")
             
             # Return the created campaign
@@ -400,24 +319,4 @@ Rate your likelihood to engage with this campaign on a scale of 1-10.
             )
         except Exception as e:
             logger.error(f"Error creating campaign: {str(e)}")
-            raise
-    
-    def _store_campaign_info(self, name, campaign):
-        """Store campaign information in a local file for backup"""
-        try:
-            import os
-            import json
-            
-            # Create the campaigns directory if it doesn't exist
-            os.makedirs("/app/campaigns", exist_ok=True)
-            
-            # Store the campaign information in a JSON file
-            campaign_dict = campaign.dict()
-            campaign_dict["created_at"] = datetime.now().isoformat()
-            
-            with open(f"/app/campaigns/campaign_{name}.json", "w") as f:
-                json.dump(campaign_dict, f)
-            
-            logger.info(f"Stored campaign information for campaign_{name}")
-        except Exception as e:
-            logger.warning(f"Error storing campaign information: {str(e)}") 
+            raise 

@@ -76,30 +76,6 @@ async def get_campaigns():
                             logger.warning(f"Error getting data for campaign {row.name}: {str(e)}")
             except Exception as e:
                 logger.warning(f"Method 1 failed: {str(e)}")
-                
-                # If all methods fail, try to read from local storage
-                try:
-                    import os
-                    import json
-                    
-                    # Check if the campaigns directory exists
-                    if os.path.exists("/app/campaigns"):
-                        # Read all campaign files
-                        for filename in os.listdir("/app/campaigns"):
-                            if filename.endswith(".json") and filename.startswith("campaign_"):
-                                try:
-                                    with open(f"/app/campaigns/{filename}", "r") as f:
-                                        campaign_info = json.load(f)
-                                        
-                                        # Convert string date to datetime
-                                        if "created_at" in campaign_info:
-                                            campaign_info["created_at"] = datetime.fromisoformat(campaign_info["created_at"])
-                                        
-                                        campaigns.append(Campaign(**campaign_info))
-                                except Exception as e:
-                                    logger.warning(f"Error reading campaign file {filename}: {str(e)}")
-                except Exception as e:
-                    logger.warning(f"Error reading campaigns from local storage: {str(e)}")
             
             logger.info(f"Retrieved {len(campaigns)} campaigns")
             return campaigns
@@ -107,37 +83,8 @@ async def get_campaigns():
         except Exception as e:
             logger.error(f"Failed to get campaigns: {str(e)}")
             
-            # If SQL fails, try to read from local storage
-            try:
-                import os
-                import json
-                
-                campaigns = []
-                
-                # Check if the campaigns directory exists
-                if os.path.exists("/app/campaigns"):
-                    # Read all campaign files
-                    for filename in os.listdir("/app/campaigns"):
-                        if filename.endswith(".json") and filename.startswith("campaign_"):
-                            try:
-                                with open(f"/app/campaigns/{filename}", "r") as f:
-                                    campaign_info = json.load(f)
-                                    
-                                    # Convert string date to datetime
-                                    if "created_at" in campaign_info:
-                                        campaign_info["created_at"] = datetime.fromisoformat(campaign_info["created_at"])
-                                    
-                                    campaigns.append(Campaign(**campaign_info))
-                            except Exception as e:
-                                logger.warning(f"Error reading campaign file {filename}: {str(e)}")
-                
-                logger.info(f"Retrieved {len(campaigns)} campaigns from local storage")
-                return campaigns
-            except Exception as e:
-                logger.warning(f"Error reading campaigns from local storage: {str(e)}")
-                
-                # If all else fails, return empty list
-                return []
+            # If all methods fail, return empty list
+            return []
                 
     except Exception as e:
         logger.error(f"Failed to get campaigns: {str(e)}")

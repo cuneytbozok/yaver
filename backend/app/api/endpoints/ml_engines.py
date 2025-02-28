@@ -107,30 +107,7 @@ async def get_ml_engines():
         except Exception as e:
             logger.warning(f"Error listing engines through SQL: {str(e)}")
         
-        # If all else fails, try to get engines directly from the client
-        try:
-            # Try to use the client's list_engines method if available
-            if hasattr(mindsdb_service.client, 'list_engines'):
-                engines_list = mindsdb_service.client.list_engines()
-                
-                engines = []
-                for engine in engines_list:
-                    engines.append(
-                        MLEngine(
-                            id=engine.name,
-                            name=engine.name,
-                            provider=engine.handler,
-                            api_key="*****",
-                            created_at=datetime.now()
-                        )
-                    )
-                
-                logger.info(f"Retrieved {len(engines)} engines through client")
-                return engines
-        except Exception as e:
-            logger.warning(f"Error listing engines through client: {str(e)}")
-        
-        # If all methods fail, return empty list
+        # If all methods fail, return an empty list
         logger.info("Returning empty engines list as fallback")
         return []
                 
