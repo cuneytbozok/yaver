@@ -6,17 +6,29 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlusCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Agent } from "@/types"
 
 export default function AgentsPage() {
-  const [agents, setAgents] = useState([])
+  const [agents, setAgents] = useState<Agent[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate loading agents
-    setTimeout(() => {
-      setAgents([])
-      setIsLoading(false)
-    }, 1000)
+    // Fetch agents from API
+    async function fetchAgents() {
+      try {
+        const response = await fetch('/api/agents')
+        if (response.ok) {
+          const data = await response.json()
+          setAgents(data)
+        }
+      } catch (error) {
+        console.error("Error fetching agents:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAgents()
   }, [])
 
   return (

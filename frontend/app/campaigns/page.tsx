@@ -6,16 +6,40 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { PlusCircle } from "lucide-react"
 
+// Define the Campaign type
+interface Campaign {
+  id: string;
+  name: string;
+  description: string;
+  target_audience: string;
+  budget: string;
+  marketing_channel: string;
+  message_type: string;
+  content: string;
+  created_at: string;
+}
+
 export default function CampaignsPage() {
-  const [campaigns, setCampaigns] = useState([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Simulate loading campaigns
-    setTimeout(() => {
-      setCampaigns([])
-      setIsLoading(false)
-    }, 1000)
+    // Fetch campaigns from API
+    async function fetchCampaigns() {
+      try {
+        const response = await fetch('/api/campaigns')
+        if (response.ok) {
+          const data = await response.json()
+          setCampaigns(data)
+        }
+      } catch (error) {
+        console.error("Error fetching campaigns:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchCampaigns()
   }, [])
 
   return (

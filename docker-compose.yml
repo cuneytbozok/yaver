@@ -26,8 +26,6 @@ services:
       - ./backend:/app
     environment:
       - MINDSDB_HOST=http://mindsdb:47334
-      - MINDSDB_USER=${MINDSDB_USER:-}
-      - MINDSDB_PASSWORD=${MINDSDB_PASSWORD:-}
     command: uvicorn app.main:app --host 0.0.0.0 --reload
     networks:
       - app-network
@@ -44,8 +42,12 @@ services:
     ports:
       - "47334:47334"  # MindsDB API
       - "47335:47335"  # MindsDB SQL
+    environment:
+      - MINDSDB_CONFIG_PATH=/root/mindsdb_storage/config.json
+      - MINDSDB_DISABLE_TELEMETRY=true
     volumes:
       - mindsdb_data:/root/mindsdb_storage
+      - ./mindsdb-config.json:/root/mindsdb_storage/config.json
     networks:
       - app-network
     healthcheck:
@@ -53,7 +55,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 30s
+      start_period: 60s  # Give MindsDB more time to start
 
 networks:
   app-network:

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("Fetching ML engines from backend");
-    const response = await fetch('http://backend:8000/api/ml-engines', {
+    console.log("Fetching agents from backend");
+    const response = await fetch('http://backend:8000/api/agents', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -18,23 +18,23 @@ export async function GET(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log(`Retrieved ${data.length} ML engines`);
+    console.log(`Retrieved ${data.length} agents`);
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching ML engines:', error);
-    return NextResponse.json({ error: 'Failed to fetch ML engines' }, { status: 500 });
+    console.error('Error fetching agents:', error);
+    return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log("Creating ML engine:", body.name);
+    console.log("Creating agent:", body.name);
     
     // Ensure name is lowercase with no spaces (MindsDB requirement)
     body.name = body.name.toLowerCase().replace(/\s+/g, '_');
     
-    const response = await fetch('http://backend:8000/api/ml-engines', {
+    const response = await fetch('http://backend:8000/api/agents', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -49,12 +49,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
-    console.log("ML engine created successfully:", data.id);
+    console.log("Agent created successfully:", data.id);
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error creating ML engine:', error);
+    console.error('Error creating agent:', error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Failed to create ML engine' 
+      error: error instanceof Error ? error.message : 'Failed to create agent' 
     }, { status: 500 });
   }
 } 

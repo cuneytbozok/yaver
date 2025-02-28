@@ -1,101 +1,269 @@
 import os
+import logging
+from datetime import datetime
 from mindsdb_sdk import connect as mindsdb_connect
 from app.models.ml_engine import MLEngineCreate, MLEngine
 from app.models.agent import AgentCreate, Agent
-from datetime import datetime
+from app.models.campaign import CampaignCreate, Campaign
+
+logger = logging.getLogger(__name__)
 
 class MindsDBService:
     def __init__(self):
         # Get MindsDB connection details from environment variables
         mindsdb_host = os.getenv("MINDSDB_HOST", "http://mindsdb:47334")
         
-        # Check if we're connecting to cloud or local instance
-        if "cloud.mindsdb.com" in mindsdb_host:
-            # Cloud connection requires username and password
-            self.client = mindsdb_connect(
-                host=mindsdb_host,
-                user=os.getenv("MINDSDB_USER"),
-                password=os.getenv("MINDSDB_PASSWORD")
-            )
-        else:
-            # Local connection just needs the host
-            self.client = mindsdb_connect(mindsdb_host)
-            
-        # Get or create the marketing_agents project
-        try:
-            self.project = self.client.get_project("marketing_agents")
-        except:
-            self.project = self.client.create_project("marketing_agents")
+        logger.info(f"Connecting to MindsDB at {mindsdb_host}")
+        
+        # Try multiple connection methods
+        for attempt in range(3):
+            try:
+                if attempt == 0:
+                    # Try connecting without credentials
+                    logger.info("Attempting connection without credentials")
+                    self.client = mindsdb_connect(mindsdb_host)
+                elif attempt == 1:
+                    # Try with empty credentials
+                    logger.info("Attempting connection with empty credentials")
+                    self.client = mindsdb_connect(mindsdb_host, "", "")
+                else:
+                    # Try with default credentials
+                    logger.info("Attempting connection with default credentials")
+                    self.client = mindsdb_connect(mindsdb_host, "mindsdb", "mindsdb")
+                    
+                logger.info("Connected to MindsDB successfully")
+                
+                # Create the marketing_agents project if it doesn't exist
+                try:
+                    # Check if database exists using SQL
+                    query = "SHOW DATABASES;"
+                    result = self.client.query(query)
+                    
+                    # Try to extract database names from the result
+                    database_exists = False
+                    try:
+                        # Try different methods to extract data
+                        for row in result:
+                            if hasattr(row, 'Database') and row.Database == "marketing_agents":
+                                database_exists = True
+                                break
+                    except Exception:
+                        # If iteration fails, try string parsing
+                        result_str = str(result)
+                        if "marketing_agents" in result_str:
+                            database_exists = True
+                    
+                    if not database_exists:
+                        # Create the database using SQL
+                        logger.info("Creating marketing_agents database")
+                        create_query = "CREATE DATABASE marketing_agents;"
+                        self.client.query(create_query)
+                    else:
+                        logger.info("Found existing marketing_agents database")
+                    
+                    # If we got here, connection is successful
+                    break
+                    
+                except Exception as e:
+                    logger.error(f"Error checking/creating database: {str(e)}")
+                    # Continue without raising - we'll handle missing database in each method
+                    break
+                    
+            except Exception as e:
+                logger.warning(f"Connection attempt {attempt+1} failed: {str(e)}")
+                if attempt == 2:  # Last attempt
+                    logger.error(f"All connection attempts to MindsDB failed")
+                    raise
     
     def create_ml_engine(self, engine: MLEngineCreate) -> MLEngine:
         """Create a new ML engine in MindsDB"""
-        engine_params = {
-            "api_key": engine.api_key
-        }
+        logger.info(f"Creating ML engine: {engine.name} with provider {engine.provider}")
         
-        if engine.model_version:
-            engine_params["model_name"] = engine.model_version
+        # Set up engine parameters according to provider
+        if engine.provider == "openai":
+            handler = "openai"
+            params = {
+                "openai_api_key": engine.api_key
+            }
+            if engine.model_version:
+                params["model_name"] = engine.model_version
+        elif engine.provider == "anthropic":
+            handler = "anthropic"
+            params = {
+                "anthropic_api_key": engine.api_key
+            }
+            if engine.model_version:
+                params["model_name"] = engine.model_version
+        elif engine.provider == "llama":
+            handler = "llama"
+            params = {}
+            if engine.api_key:
+                params["api_key"] = engine.api_key
+            if engine.model_version:
+                params["model_name"] = engine.model_version
+        elif engine.provider == "gemini":
+            handler = "google"
+            params = {
+                "api_key": engine.api_key
+            }
+            if engine.model_version:
+                params["model_name"] = engine.model_version
+        else:
+            raise ValueError(f"Unsupported provider: {engine.provider}")
             
-        # Create the engine in MindsDB
         try:
-            mindsdb_engine = self.project.engines.create(
-                name=engine.name,
-                handler=engine.provider,
-                params=engine_params
-            )
+            # Format engine name to comply with MindsDB naming requirements
+            engine_name = engine.name.lower().replace(' ', '_').replace('-', '_')
+            
+            # Try to create the engine using the project directly
+            try:
+                if hasattr(self, 'project') and self.project:
+                    logger.info(f"Creating engine through project: {engine_name}")
+                    mindsdb_engine = self.project.engines.create(
+                        name=engine_name,
+                        handler=handler,
+                        params=params
+                    )
+                    logger.info(f"Engine created successfully through project: {mindsdb_engine.name}")
+                    
+                    # Store the engine information in a local file for backup
+                    self._store_engine_info(engine_name, handler, engine.model_version, engine.description)
+                    
+                    return MLEngine(
+                        id=mindsdb_engine.name,
+                        name=engine.name,
+                        provider=engine.provider,
+                        api_key="*****",  # Hide API key for security
+                        model_version=engine.model_version,
+                        description=engine.description,
+                        created_at=datetime.now()
+                    )
+            except Exception as e:
+                logger.warning(f"Error creating engine through project: {str(e)}")
+            
+            # If project method fails, try SQL
+            # Create the engine using SQL
+            query = f"""
+            CREATE ENGINE marketing_agents.{engine_name} 
+            FROM {handler}
+            USING """
+            
+            # Add parameters as JSON
+            import json
+            params_json = json.dumps(params)
+            query += params_json + ";"
+            
+            # Execute the query
+            logger.info(f"Executing SQL query: {query}")
+            result = self.client.query(query)
+            logger.info(f"SQL query result: {result}")
+            
+            # Store the engine information in a local file for backup
+            self._store_engine_info(engine_name, handler, engine.model_version, engine.description)
             
             # Return the created engine
             return MLEngine(
-                id=mindsdb_engine.name,
+                id=engine_name,
                 name=engine.name,
                 provider=engine.provider,
-                api_key=engine.api_key,
+                api_key="*****",  # Hide API key for security
                 model_version=engine.model_version,
                 description=engine.description,
                 created_at=datetime.now()
             )
         except Exception as e:
-            # Log the error and re-raise
-            print(f"Error creating ML engine: {str(e)}")
+            logger.error(f"Error creating ML engine: {str(e)}")
             raise
+    
+    def _store_engine_info(self, name, handler, model_version=None, description=None):
+        """Store engine information in a local file for backup"""
+        try:
+            import os
+            import json
+            
+            # Create the engines directory if it doesn't exist
+            os.makedirs("/app/engines", exist_ok=True)
+            
+            # Store the engine information in a JSON file
+            engine_info = {
+                "name": name,
+                "handler": handler,
+                "model_version": model_version,
+                "description": description,
+                "created_at": datetime.now().isoformat()
+            }
+            
+            with open(f"/app/engines/{name}.json", "w") as f:
+                json.dump(engine_info, f)
+            
+            logger.info(f"Stored engine information for {name}")
+        except Exception as e:
+            logger.warning(f"Error storing engine information: {str(e)}")
     
     def create_agent(self, agent: AgentCreate) -> Agent:
         """Create a new agent in MindsDB using the specified ML engine"""
+        logger.info(f"Creating agent: {agent.name} with ML engine: {agent.ml_engine_id}")
+        
         try:
-            # Get the ML engine
-            engine = self.project.engines.get(agent.ml_engine_id)
+            # Format agent name to comply with MindsDB naming requirements
+            agent_name = agent.name.lower().replace(' ', '_').replace('-', '_')
             
-            # Create agent model in MindsDB
-            agent_model = self.project.models.create(
-                name=agent.name,
-                engine=engine.name,
-                params={
-                    "prompt_template": self._generate_agent_prompt(agent),
-                    "agent_description": agent.description,
-                    "agent_attributes": {
-                        "age": agent.age,
-                        "gender": agent.gender,
-                        "occupation": agent.occupation,
-                        "income_level": agent.income_level,
-                        "education_level": agent.education_level,
-                        "interests": agent.interests,
-                        "personality_traits": agent.personality_traits,
-                        "buying_preferences": agent.buying_preferences,
-                        "purchase_behaviors": agent.purchase_behaviors,
-                        "purchase_frequency": agent.purchase_frequency,
-                        "communication_preferences": agent.communication_preferences,
-                        "location": agent.location,
-                        "social_media_usage": agent.social_media_usage,
-                        "brand_loyalty": agent.brand_loyalty,
-                        "price_sensitivity": agent.price_sensitivity,
-                        "tech_savviness": agent.tech_savviness
-                    }
-                }
-            )
+            # Prepare agent attributes
+            agent_attributes = {
+                "age": agent.age,
+                "gender": agent.gender,
+                "occupation": agent.occupation,
+                "income_level": agent.income_level,
+                "education_level": agent.education_level,
+                "interests": agent.interests,
+                "personality_traits": agent.personality_traits,
+                "purchase_behaviors": agent.purchase_behaviors,
+                "purchase_frequency": agent.purchase_frequency,
+                "communication_preferences": agent.communication_preferences,
+                "location": agent.location,
+                "social_media_usage": agent.social_media_usage,
+                "brand_loyalty": agent.brand_loyalty,
+                "price_sensitivity": agent.price_sensitivity,
+                "tech_savviness": agent.tech_savviness
+            }
+            
+            # Filter out None values to avoid MindsDB errors
+            agent_attributes = {k: v for k, v in agent_attributes.items() if v is not None}
+            
+            # Generate the prompt template
+            prompt_template = self._generate_agent_prompt(agent)
+            
+            # Create agent model in MindsDB using SQL
+            logger.info(f"Creating agent model with name: {agent_name}")
+            
+            # Convert attributes to JSON string
+            import json
+            attributes_json = json.dumps(agent_attributes)
+            description = agent.description.replace("'", "''") if agent.description else ""
+            
+            # Create the model using SQL
+            query = f"""
+            CREATE MODEL marketing_agents.{agent_name}
+            PREDICT response
+            USING
+                engine = '{agent.ml_engine_id}',
+                prompt_template = '{prompt_template.replace("'", "''")}',
+                agent_description = '{description}',
+                agent_attributes = '{attributes_json}';
+            """
+            
+            logger.info(f"Executing SQL query: {query}")
+            result = self.client.query(query)
+            logger.info(f"SQL query result: {result}")
+            
+            # Store agent information locally for backup
+            self._store_agent_info(agent_name, agent)
+            
+            logger.info(f"Agent created successfully: {agent_name}")
             
             # Return the created agent
             return Agent(
-                id=agent_model.name,
+                id=agent_name,
                 name=agent.name,
                 description=agent.description,
                 age=agent.age,
@@ -105,7 +273,6 @@ class MindsDBService:
                 education_level=agent.education_level,
                 interests=agent.interests,
                 personality_traits=agent.personality_traits,
-                buying_preferences=agent.buying_preferences,
                 ml_engine_id=agent.ml_engine_id,
                 purchase_behaviors=agent.purchase_behaviors,
                 purchase_frequency=agent.purchase_frequency,
@@ -118,9 +285,28 @@ class MindsDBService:
                 created_at=datetime.now()
             )
         except Exception as e:
-            # Log the error and re-raise
-            print(f"Error creating agent: {str(e)}")
+            logger.error(f"Error creating agent: {str(e)}")
             raise
+    
+    def _store_agent_info(self, name, agent):
+        """Store agent information in a local file for backup"""
+        try:
+            import os
+            import json
+            
+            # Create the agents directory if it doesn't exist
+            os.makedirs("/app/agents", exist_ok=True)
+            
+            # Store the agent information in a JSON file
+            agent_dict = agent.dict()
+            agent_dict["created_at"] = datetime.now().isoformat()
+            
+            with open(f"/app/agents/{name}.json", "w") as f:
+                json.dump(agent_dict, f)
+            
+            logger.info(f"Stored agent information for {name}")
+        except Exception as e:
+            logger.warning(f"Error storing agent information: {str(e)}")
     
     def _generate_agent_prompt(self, agent: AgentCreate) -> str:
         """Generate a prompt template for the agent based on its attributes"""
@@ -147,3 +333,91 @@ Explain why you would or would not be interested in the product or service.
 Rate your likelihood to engage with this campaign on a scale of 1-10.
 """
         return prompt 
+    
+    def create_campaign(self, campaign: CampaignCreate) -> Campaign:
+        """Create a new marketing campaign in MindsDB using SQL"""
+        logger.info(f"Creating campaign: {campaign.name}")
+        
+        try:
+            # Format campaign name to comply with MindsDB naming requirements
+            campaign_name = campaign.name.lower().replace(' ', '_').replace('-', '_')
+            
+            # Create a table to store the campaign data using SQL
+            create_table_query = f"""
+            CREATE TABLE marketing_agents.campaign_{campaign_name} (
+                name VARCHAR(255),
+                description TEXT,
+                target_audience VARCHAR(255),
+                budget VARCHAR(100),
+                marketing_channel VARCHAR(100),
+                message_type VARCHAR(50),
+                content TEXT,
+                created_at DATETIME
+            );
+            """
+            
+            # Execute the query to create the table
+            logger.info(f"Executing SQL query to create campaign table: {create_table_query}")
+            result = self.client.query(create_table_query)
+            
+            # Insert the campaign data
+            insert_query = f"""
+            INSERT INTO marketing_agents.campaign_{campaign_name} (
+                name, description, target_audience, budget, 
+                marketing_channel, message_type, content, created_at
+            ) VALUES (
+                '{campaign.name.replace("'", "''")}',
+                '{campaign.description.replace("'", "''")}',
+                '{campaign.target_audience.replace("'", "''")}',
+                '{campaign.budget.replace("'", "''")}',
+                '{campaign.marketing_channel.replace("'", "''")}',
+                '{campaign.message_type}',
+                '{campaign.content.replace("'", "''")}',
+                '{datetime.now().isoformat()}'
+            );
+            """
+            
+            # Execute the insert query
+            logger.info(f"Executing SQL query to insert campaign data: {insert_query}")
+            insert_result = self.client.query(insert_query)
+            
+            # Store campaign information locally for backup
+            self._store_campaign_info(campaign_name, campaign)
+            
+            logger.info(f"Campaign created successfully: campaign_{campaign_name}")
+            
+            # Return the created campaign
+            return Campaign(
+                id=f"campaign_{campaign_name}",
+                name=campaign.name,
+                description=campaign.description,
+                target_audience=campaign.target_audience,
+                budget=campaign.budget,
+                marketing_channel=campaign.marketing_channel,
+                message_type=campaign.message_type,
+                content=campaign.content,
+                created_at=datetime.now()
+            )
+        except Exception as e:
+            logger.error(f"Error creating campaign: {str(e)}")
+            raise
+    
+    def _store_campaign_info(self, name, campaign):
+        """Store campaign information in a local file for backup"""
+        try:
+            import os
+            import json
+            
+            # Create the campaigns directory if it doesn't exist
+            os.makedirs("/app/campaigns", exist_ok=True)
+            
+            # Store the campaign information in a JSON file
+            campaign_dict = campaign.dict()
+            campaign_dict["created_at"] = datetime.now().isoformat()
+            
+            with open(f"/app/campaigns/campaign_{name}.json", "w") as f:
+                json.dump(campaign_dict, f)
+            
+            logger.info(f"Stored campaign information for campaign_{name}")
+        except Exception as e:
+            logger.warning(f"Error storing campaign information: {str(e)}") 

@@ -1,56 +1,85 @@
-from app.utils.mindsdb_client import get_mindsdb_client
+import os
 import logging
+from mindsdb_sdk import connect as mindsdb_connect
 
 logger = logging.getLogger(__name__)
 
 def setup_mindsdb():
-    """
-    Set up the necessary tables and projects in MindsDB
-    """
+    """Set up MindsDB connection and create necessary resources"""
     try:
-        # Get MindsDB client
-        client = get_mindsdb_client()
+        # Get MindsDB connection details from environment variables
+        mindsdb_host = os.getenv("MINDSDB_HOST", "http://mindsdb:47334")
         
-        # Create project if it doesn't exist
-        try:
-            project = client.get_project('marketing_agents')
-            logger.info("Project 'marketing_agents' already exists")
-        except Exception:
-            project = client.create_project('marketing_agents')
-            logger.info("Created project 'marketing_agents'")
+        logger.info(f"Setting up MindsDB at {mindsdb_host}")
         
-        # Create agents table if it doesn't exist
-        try:
-            query = """
-            CREATE TABLE marketing_agents.agents (
-                id VARCHAR(36) NOT NULL,
-                name VARCHAR(100) NOT NULL,
-                age INT NOT NULL,
-                gender VARCHAR(20) NOT NULL,
-                income_level INT NOT NULL,
-                education_level VARCHAR(50) NOT NULL,
-                interests TEXT NOT NULL,
-                purchase_behaviors TEXT NOT NULL,
-                purchase_frequency VARCHAR(20) NOT NULL,
-                communication_preferences TEXT NOT NULL,
-                location VARCHAR(100) NOT NULL,
-                social_media_usage TEXT,
-                brand_loyalty INT NOT NULL,
-                price_sensitivity INT NOT NULL,
-                tech_savviness INT NOT NULL,
-                PRIMARY KEY (id)
-            )
-            """
-            project.query(query)
-            logger.info("Created table 'agents'")
-        except Exception as e:
-            logger.info(f"Table 'agents' may already exist: {e}")
-        
-        logger.info("MindsDB setup completed successfully")
-    
+        # Try multiple connection methods
+        for attempt in range(3):
+            try:
+                if attempt == 0:
+                    # Try connecting without credentials
+                    logger.info("Attempting connection without credentials")
+                    client = mindsdb_connect(mindsdb_host)
+                elif attempt == 1:
+                    # Try with empty credentials
+                    logger.info("Attempting connection with empty credentials")
+                    client = mindsdb_connect(mindsdb_host, "", "")
+                else:
+                    # Try with default credentials
+                    logger.info("Attempting connection with default credentials")
+                    client = mindsdb_connect(mindsdb_host, "mindsdb", "mindsdb")
+                    
+                logger.info("Connected to MindsDB successfully")
+                
+                # Create the marketing_agents database if it doesn't exist
+                try:
+                    # Check if database exists using SQL
+                    query = "SHOW DATABASES;"
+                    result = client.query(query)
+                    
+                    # Try to extract database names from the result
+                    database_exists = False
+                    try:
+                        # Try different methods to extract data
+                        for row in result:
+                            if hasattr(row, 'Database') and row.Database == "marketing_agents":
+                                database_exists = True
+                                break
+                    except Exception:
+                        # If iteration fails, try string parsing
+                        result_str = str(result)
+                        if "marketing_agents" in result_str:
+                            database_exists = True
+                    
+                    if not database_exists:
+                        # Create the database using SQL
+                        logger.info("Creating marketing_agents database")
+                        create_query = "CREATE DATABASE marketing_agents;"
+                        client.query(create_query)
+                        logger.info("Created marketing_agents database")
+                    else:
+                        logger.info("Found existing marketing_agents database")
+                    
+                    # Setup completed successfully
+                    logger.info("MindsDB setup completed successfully")
+                    return
+                    
+                except Exception as e:
+                    logger.error(f"Error setting up MindsDB database: {str(e)}")
+                    # Continue without raising - we'll handle missing database in each method
+                    return
+                    
+            except Exception as e:
+                logger.warning(f"Connection attempt {attempt+1} failed: {str(e)}")
+                if attempt == 2:  # Last attempt
+                    raise
+                
     except Exception as e:
-        logger.error(f"Error setting up MindsDB: {e}")
+        logger.error(f"Error setting up MindsDB: {str(e)}")
         raise
 
 if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(level=logging.INFO)
+    
+    # Run the setup
     setup_mindsdb() 

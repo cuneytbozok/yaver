@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "sonner"
+import { MLEngine } from "@/types"
 
 // Define the form schema
 const formSchema = z.object({
@@ -55,7 +56,7 @@ const formSchema = z.object({
 })
 
 export default function CreateAgentPage() {
-  const [engines, setEngines] = useState([])
+  const [engines, setEngines] = useState<MLEngine[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   
   // Fetch ML engines on component mount

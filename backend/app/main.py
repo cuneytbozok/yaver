@@ -1,9 +1,9 @@
+import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.endpoints import agents, campaigns, ml_engines
 from app.scripts.setup_mindsdb import setup_mindsdb
 import asyncio
-import logging
 
 app = FastAPI(title="Marketing Campaign Evaluation API")
 
@@ -26,20 +26,20 @@ app.include_router(campaigns.router, prefix="/api/campaigns", tags=["campaigns"]
 app.include_router(ml_engines.router, prefix="/api/ml-engines", tags=["ml_engines"])
 
 @app.get("/api/hello")
-def hello():
-    return {"message": "Hello World"}
+async def hello():
+    return {"message": "Hello from the Marketing Campaign Evaluation API!"}
 
 @app.on_event("startup")
 async def startup_event():
     # Run MindsDB setup in a separate thread to avoid blocking the startup
     loop = asyncio.get_event_loop()
     try:
+        logger.info("Setting up MindsDB...")
         await loop.run_in_executor(None, setup_mindsdb)
-        logger.info("MindsDB setup completed successfully")
+        logger.info("MindsDB setup completed")
     except Exception as e:
-        logger.error(f"Error setting up MindsDB: {e}")
-        # Continue startup even if MindsDB setup fails
-        # The application can still function, and setup can be retried later
+        logger.error(f"Error setting up MindsDB: {str(e)}")
+        logger.info("Continuing without initial MindsDB setup - will try to connect when needed")
 
 if __name__ == "__main__":
     import uvicorn

@@ -21,6 +21,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator"
 import { Loader2, Key } from "lucide-react"
 import { toast } from "sonner"
+import { MLEngine } from "@/types"
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -36,7 +37,7 @@ const formSchema = z.object({
 
 export default function MLEnginesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [engines, setEngines] = useState([])
+  const [engines, setEngines] = useState<MLEngine[]>([])
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -52,24 +53,33 @@ export default function MLEnginesPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true)
     try {
+      // Convert name to lowercase with underscores (MindsDB requirement)
+      const formattedValues = {
+        ...values,
+        name: values.name.toLowerCase().replace(/\s+/g, '_')
+      };
+      
       const response = await fetch('/api/ml-engines', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(formattedValues),
       })
       
       if (!response.ok) {
-        throw new Error('Failed to create ML engine')
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create ML engine');
       }
       
       const data = await response.json()
-      toast.success("ML Engine created successfully!")
+      toast.success("ML engine created successfully!")
       form.reset()
+      
+      // Refresh the engines list
       fetchEngines()
     } catch (error) {
-      toast.error("Failed to create ML engine")
+      toast.error(error instanceof Error ? error.message : "Failed to create ML engine")
       console.error(error)
     } finally {
       setIsSubmitting(false)
