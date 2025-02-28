@@ -25,18 +25,39 @@ services:
     volumes:
       - ./backend:/app
     environment:
-      - MINDSDB_HOST=cloud.mindsdb.com
-      - MINDSDB_USER=${MINDSDB_USER}
-      - MINDSDB_PASSWORD=${MINDSDB_PASSWORD}
+      - MINDSDB_HOST=http://mindsdb:47334
+      - MINDSDB_USER=${MINDSDB_USER:-}
+      - MINDSDB_PASSWORD=${MINDSDB_PASSWORD:-}
     command: uvicorn app.main:app --host 0.0.0.0 --reload
     networks:
       - app-network
+    depends_on:
+      - mindsdb
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/hello"]
       interval: 10s
       timeout: 5s
       retries: 3
 
+  mindsdb:
+    image: mindsdb/mindsdb:latest
+    ports:
+      - "47334:47334"  # MindsDB API
+      - "47335:47335"  # MindsDB SQL
+    volumes:
+      - mindsdb_data:/root/mindsdb_storage
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:47334/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
 networks:
   app-network:
-    driver: bridge 
+    driver: bridge
+
+volumes:
+  mindsdb_data: 

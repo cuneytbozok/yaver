@@ -108,6 +108,16 @@ export function MainNav() {
             </NavigationMenuLink>
           </Link>
         </NavigationMenuItem>
+        <NavigationMenuItem>
+          <Link href="/ml-engines" legacyBehavior passHref>
+            <NavigationMenuLink className={cn(
+              "text-sm font-medium transition-colors hover:text-primary",
+              pathname === "/ml-engines" ? "text-primary" : "text-muted-foreground"
+            )}>
+              ML Engines
+            </NavigationMenuLink>
+          </Link>
+        </NavigationMenuItem>
       </NavigationMenuList>
     </NavigationMenu>
   )

@@ -1,11 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import agents
+from app.api.endpoints import agents, campaigns, ml_engines
 from app.scripts.setup_mindsdb import setup_mindsdb
 import asyncio
 import logging
 
-app = FastAPI(title="Python Backend API")
+app = FastAPI(title="Marketing Campaign Evaluation API")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,18 +14,20 @@ logger = logging.getLogger(__name__)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://frontend:3000"],  # Frontend URLs
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(agents.router)
+app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
+app.include_router(campaigns.router, prefix="/api/campaigns", tags=["campaigns"])
+app.include_router(ml_engines.router, prefix="/api/ml-engines", tags=["ml_engines"])
 
 @app.get("/api/hello")
-async def hello():
-    return {"message": "Hello from the Python backend!"}
+def hello():
+    return {"message": "Hello World"}
 
 @app.on_event("startup")
 async def startup_event():

@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from enum import Enum
+from datetime import datetime
 
 class Gender(str, Enum):
     MALE = "MALE"
@@ -32,12 +33,17 @@ class PurchaseFrequency(str, Enum):
     RARELY = "RARELY"
 
 class AgentBase(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100)
-    age: int = Field(..., ge=18, le=100)
-    gender: Gender
-    income_level: int = Field(..., ge=0, le=1000000)
-    education_level: EducationLevel
-    interests: List[str] = Field(..., min_items=1)
+    name: str
+    description: Optional[str] = None
+    age: Optional[int] = None
+    gender: Optional[str] = None
+    occupation: Optional[str] = None
+    income_level: Optional[str] = None
+    education_level: Optional[str] = None
+    interests: Optional[List[str]] = None
+    personality_traits: Optional[List[str]] = None
+    buying_preferences: Optional[Dict[str, Any]] = None
+    ml_engine_id: str  # Reference to the ML engine
     purchase_behaviors: List[str] = Field(..., min_items=1)
     purchase_frequency: PurchaseFrequency
     communication_preferences: List[CommunicationPreference] = Field(..., min_items=1)
@@ -58,6 +64,11 @@ class AgentCreate(AgentBase):
 
 class Agent(AgentBase):
     id: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        orm_mode = True
 
 class AgentResponse(Agent):
     pass 
