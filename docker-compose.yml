@@ -1,15 +1,17 @@
-version: '3'
+version: '3.8'
 
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      NODE_ENV: production
+    # Remove or comment out the volumes section for production build
+    # volumes:
+    #   - ./frontend:/app
     depends_on:
       - backend
     command: npm run dev
